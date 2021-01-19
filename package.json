@@ -1,0 +1,22 @@
+{
+  "name": "gettoptweets",
+  "version": "1.0.0",
+  "description": "Rank tweets of Twitter profile by likes recieved",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TheGreatRambler/GetTopTweets.git"
+  },
+  "author": "TheGreatRambler",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/TheGreatRambler/GetTopTweets/issues"
+  },
+  "homepage": "https://github.com/TheGreatRambler/GetTopTweets#readme",
+  "dependencies": {
+    "twitter": "^1.7.1"
+  }
+}

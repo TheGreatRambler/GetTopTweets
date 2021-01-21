@@ -1,6 +1,10 @@
 const Twitter = require ("twitter");
 const config  = require ("./config.json");
 const fs      = require ("fs");
+const ChartJS = require("chartjs-node-canvas");
+const Canvas = require("canvas");
+
+// Consider looking into this https://pypi.org/project/GetOldTweets3/
 
 var client;
 

@@ -17,6 +17,8 @@
   },
   "homepage": "https://github.com/TheGreatRambler/GetTopTweets#readme",
   "dependencies": {
+    "chart.js": "^2.9.4",
+    "chartjs-node-canvas": "^3.0.6",
     "twitter": "^1.7.1"
   }
 }

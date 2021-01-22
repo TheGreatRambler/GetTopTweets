@@ -1,74 +1,27 @@
-const Twitter   = require ("twitter");
-const config    = require ("./config.json");
-const fs        = require ("fs");
-const ChartJS   = require ("chartjs-node-canvas");
-const Canvas    = require ("canvas");
-const puppeteer = require ("puppeteer");
+const Twitter    = require ("twitter");
+const config     = require ("./config.json");
+const fs         = require ("fs");
+const ChartJS    = require ("chartjs-node-canvas");
+const Canvas     = require ("canvas");
+const puppeteer  = require ("puppeteer");
+const CP         = require ("child_process");
+const lineReader = require ("line-reader");
 
 // Consider looking into this https://pypi.org/project/GetOldTweets3/
 
 var client;
 
-var allResponses        = [];
-var maxAllResponsesSize = 30;
+var allResponses  = [];
+var temporaryPath = "tweets.txt"
+var tweetLimit    = -1;
 
-var allTweetsPath = "./tweets.csv";
-
-if (fs.existsSync(allTweetsPath)) {
-	fs.unlinkSync(allTweetsPath);
+if (fs.existsSync(temporaryPath)) {
+	fs.unlinkSync(temporaryPath);
 }
 
-const allTweets = fs.createWriteStream(allTweetsPath);
-
-allTweets.write("Text,Likes,Retweets,Id,Created,URL\n")
-
 async function getEveryTweet (username) {
-	// Go backwards
-	var maxId = undefined;
-	while (true) {
-		try {
-			var responses = await client.get("statuses/user_timeline", {
-				include_rts: 1,
-				max_id: maxId,
-				screen_name: username,
-				count: maxAllResponsesSize == -1 ? 200 : Math.min(maxAllResponsesSize - allResponses.length, 200)
-			});
-		} catch (e) {
-			console.error(e);
-		}
-
-		if (responses.length == 0) {
-			console.log("Reached end of profile");
-			break;
-		} else if (responses.length == 1) {
-			console.log("Peculier error, only 1 response returned");
-			break;
-		} else {
-			console.log("Obtained " + responses.length + " tweets in this batch");
-
-			maxId = responses[responses.length - 1].id_str;
-
-			// Supposedly fastest way
-			allResponses.push(...responses);
-
-			responses.forEach(function (tweet) {
-				if (!tweet.text.startsWith("RT ")) {
-					tweet.url = `https://twitter.com/${username}/status/${tweet.id_str}`;
-					allResponses.push(tweet);
-
-					// All charactors except spaces must be replaced
-					allTweets.write(`"${tweet.text.replace(/\n/g, "%0A").replace(/"/g, "%22")}",${tweet.favorite_count},${tweet.retweet_count},${tweet.id_str},${tweet.created_at},tweet.url\n`);
-				}
-			});
-
-			if (maxAllResponsesSize != -1 && allResponses.length > maxAllResponsesSize) {
-				console.log("Reached forced tweet end");
-				break;
-			}
-		}
-	}
-
-	allTweets.close();
+	// 9223372036854775807 is the maximum number in python, so it's basically infinity
+	CP.execSync(`twint -u ${username} --format "{'link':'{link}','tweet':'{tweet}','replies':{replies},'retweets':{retweets},'likes':{likes},'id':'{id}','date':'{date}'}" -o ${temporaryPath} --limit ${tweetLimit == -1 ? 9223372036854775807 : tweetLimit}`);
 }
 
 client = new Twitter ({
@@ -78,7 +31,15 @@ client = new Twitter ({
 });
 
 (async () => {
-	getEveryTweet ("simplyn64");
+	var username = "simplyn64"
+	getEveryTweet (username);
+
+	var tweets = [];
+	lineReader.eachLine(temporaryPath, function (line) {
+		if (line !== "") {
+			tweets.push(JSON.parse(line));
+		}
+	});
 
 	const browser = await puppeteer.launch({
 		headless: true
@@ -97,11 +58,12 @@ client = new Twitter ({
 	const canvas = Canvas.createCanvas(1000, 600);
 	const ctx    = canvas.getContext("2d");
 
-	var userInfo       = allResponses[0].user;
-	var profilePicture = userInfo.profile_image_url.replace("normal", "400x400");
+	var userInfo       = JSON.parse(CP.execSync(`twint -u ${username} --user-full --format "{'name':'{name}','bio':'{bio}','tweets':{tweets},'following':{following},'followers':{followers},'avatar':'{avatar}'}"`));
+    var profilePicture = userInfo.avatar.replace("normal", "400x400");
 
 	for (let i = 0; i < allResponses.length; i++) {
 		var tweet = allResponses[i];
+		console.log(tweet);
 
 		// https://twitter.com/MatttGFX/status/1352400305963618306?s=20
 		const page = await browser.newPage();

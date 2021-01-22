@@ -31,7 +31,7 @@ async function getEveryTweet (username) {
 				include_rts: 1,
 				max_id: maxId,
 				screen_name: username,
-				count: 200
+				count: maxAllResponsesSize == -1 ? 200 : Math.min(maxAllResponsesSize - allResponses.length, 200)
 			});
 		} catch (e) {
 			console.error(e);

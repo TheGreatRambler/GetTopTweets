@@ -68,8 +68,13 @@ client = new Twitter({
 	const canvas = Canvas.createCanvas(1000, 600);
 	const ctx    = canvas.getContext("2d");
 
-	var userParts = CP.execSync(`twint -u ${username} --user-full --format "{name}|{bio}|{tweets}|{following}|{followers}|{avatar}"`).toString("utf8").split("|");
-	var userInfo       = {
+	var userParts
+		= CP
+			  .execSync(`twint -u ${
+				  username} --user-full --format "{name}|{bio}|{tweets}|{following}|{followers}|{avatar}"`)
+			  .toString("utf8")
+			  .split("|");
+	var userInfo = {
 		name: userParts[0],
 		bio: userParts[1],
 		tweets: parseInt(userParts[2]),
@@ -79,14 +84,34 @@ client = new Twitter({
 	};
 	console.log(userInfo);
 
+	const page = await browser.newPage();
+	await page.emulateMediaFeatures(
+		[{ name: 'prefers-color-scheme', value: 'dark' }]);
+
+	//await page.emulate(puppeteer.devices["Pixel 2"]);
+
 	for(let i = 0; i < tweets.length; i++) {
 		var tweet = tweets[i];
-		console.log(tweet);
+		// console.log(tweet);
 
-		// https://twitter.com/MatttGFX/status/1352400305963618306?s=20
-		//const page = await browser.newPage();
 		console.log(tweet.link + "?s=20");
-		//await page.goto(tweet.link + "?s=20");
+
+		await page.goto(tweet.link + "?s=20", { waitUntil: "networkidle0" });
+		var tweetHandle = await page.evaluateHandle((username) => {
+			document.getElementsByClassName("r-aqfbo4")[0].remove()
+			var possibleTweets
+				= Array.from(document.querySelectorAll("[role='article']"));
+
+			for(var i = 0; i < possibleTweets.length; i++) {
+				var element     = possibleTweets[i];
+				var testElement = element.querySelectorAll("[role='link']")[1];
+				if(testElement
+					&& testElement.href === "https://twitter.com/" + username) {
+					return element;
+				}
+			}
+		}, username);
+		await tweetHandle.screenshot({ path: tweet.id + ".png" });
 	}
 
 	browser.close();

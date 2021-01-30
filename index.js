@@ -4,7 +4,9 @@ const fs         = require("fs");
 const ChartJS    = require("chartjs-node-canvas");
 const Canvas     = require("canvas");
 const puppeteer  = require("puppeteer");
+const sharp      = require("sharp");
 const CP         = require("child_process");
+const potpack    = require("potpack");
 const lineReader = require("line-reader");
 
 // Consider looking into this https://pypi.org/project/GetOldTweets3/
@@ -12,7 +14,7 @@ const lineReader = require("line-reader");
 var client;
 
 var temporaryPath = "tweets.txt"
-var tweetLimit    = 30;
+var tweetLimit    = 10;
 
 if(fs.existsSync(temporaryPath)) {
 	fs.unlinkSync(temporaryPath);
@@ -41,32 +43,26 @@ client = new Twitter({
 
 	console.log("Done scraping tweets, now processing");
 
+	var currentIndex = 0;
 	var tweets = [];
 	lineReader.eachLine(temporaryPath, function(line) {
 		if(line !== "") {
-			var parts = line.split("|");
-			tweets.push({
-				link: parts[0],
-				tweet: parts[1],
-				replies: parseInt(parts[2]),
-				retweets: parseInt(parts[3]),
-				likes: parseInt(parts[4]),
-				id: parts[5],
-				date: parts[6]
-			});
+			if (tweetLimit == -1 || currentIndex < tweetLimit) {
+				var parts = line.split("|");
+				tweets.push({
+					link: parts[0],
+					tweet: parts[1],
+					replies: parseInt(parts[2]),
+					retweets: parseInt(parts[3]),
+					likes: parseInt(parts[4]),
+					id: parts[5],
+					date: parts[6]
+				});
+
+				currentIndex++;
+			}
 		}
 	});
-
-	const browser = await puppeteer.launch({ headless: true });
-
-	Canvas.registerFont("assets/HelveticaNeue-Bold.ttf",
-		{ family: "HelveticaNeue", style: "bold" });
-
-	Canvas.registerFont("assets/HelveticaNeue-Regular.ttf",
-		{ family: "HelveticaNeue", style: "normal" });
-
-	const canvas = Canvas.createCanvas(1000, 600);
-	const ctx    = canvas.getContext("2d");
 
 	var userParts
 		= CP
@@ -84,11 +80,25 @@ client = new Twitter({
 	};
 	console.log(userInfo);
 
+	tweets = tweets.sort(function(first, second) {
+		if(first.likes > second.likes) {
+			return -1;
+		} else {
+			return 1;
+		}
+	});
+	
+	const browser = await puppeteer.launch({ headless: true });
+
 	const page = await browser.newPage();
 	await page.emulateMediaFeatures(
 		[{ name: 'prefers-color-scheme', value: 'dark' }]);
 
-	//await page.emulate(puppeteer.devices["Pixel 2"]);
+	await page.emulate(puppeteer.devices["iPad Pro"]);
+	await page.setViewport({ width: 2000, height: 4000});
+
+	var generatedImages     = [];
+	var generatedImagesSize = [];
 
 	for(let i = 0; i < tweets.length; i++) {
 		var tweet = tweets[i];
@@ -111,8 +121,57 @@ client = new Twitter({
 				}
 			}
 		}, username);
-		await tweetHandle.screenshot({ path: tweet.id + ".png" });
+
+		var buffer = await tweetHandle.screenshot({ type: "png" });
+
+		const bufferInfo   = await sharp(buffer).metadata();
+		console.log(bufferInfo);
+		const resizedImage = await sharp(
+			buffer).resize(Math.round(bufferInfo.width / (i + 1)))
+								 .toBuffer();
+		const bufferInfoResized = await sharp(resizedImage).metadata();
+
+		generatedImages.push(resizedImage);
+		generatedImagesSize.push(
+			{ w: bufferInfoResized.width, h: bufferInfoResized.height });
+
+		console.log("Handled tweet #" + i + " , width "
+					+ bufferInfoResized.width + ", height "
+					+ bufferInfoResized.height);
 	}
+
+	const potpackInfo = potpack(generatedImagesSize);
+
+	console.log(potpackInfo);
+
+	Canvas.registerFont("assets/HelveticaNeue-Bold.ttf",
+		{ family: "HelveticaNeue", style: "bold" });
+
+	Canvas.registerFont("assets/HelveticaNeue-Regular.ttf",
+		{ family: "HelveticaNeue", style: "normal" });
+
+	const canvas = Canvas.createCanvas(potpackInfo.w, potpackInfo.h);
+	const ctx    = canvas.getContext("2d");
+
+	generatedImages.forEach(function(buf, index) {
+		const correspondingInfo = generatedImagesSize[index];
+		const img               = new Canvas.Image();
+		img.onload = () => ctx.drawImage(
+			img, correspondingInfo.x, correspondingInfo.y);
+		img.onerror = err => {
+			throw err
+		};
+		img.src = buf;
+	});
+
+	const finalImage = canvas.toBuffer(
+		'image/png', { compressionLevel: 3, filters: canvas.PNG_FILTER_NONE });
+
+	if(fs.existsSync("output.png")) {
+		fs.unlinkSync("output.png");
+	}
+
+	fs.writeFileSync("output.png", finalImage);
 
 	browser.close();
 })();

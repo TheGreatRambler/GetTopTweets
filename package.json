@@ -23,6 +23,8 @@
     "line-reader": "^0.4.0",
     "potpack": "^1.0.1",
     "puppeteer": "^5.5.0",
+    "puppeteer-extra": "^3.1.16",
+    "puppeteer-extra-plugin-stealth": "^2.7.3",
     "sharp": "^0.27.1",
     "twitter": "^1.7.1"
   }

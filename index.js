@@ -3,11 +3,14 @@ const config     = require("./config.json");
 const fs         = require("fs");
 const ChartJS    = require("chartjs-node-canvas");
 const Canvas     = require("canvas");
-const puppeteer  = require("puppeteer");
+const puppeteer  = require("puppeteer-extra");
 const sharp      = require("sharp");
 const CP         = require("child_process");
 const potpack    = require("potpack");
 const lineReader = require("line-reader");
+
+const StealthPlugin = require("puppeteer-extra-plugin-stealth");
+//puppeteer.use(StealthPlugin());
 
 // Consider looking into this https://pypi.org/project/GetOldTweets3/
 
@@ -44,10 +47,10 @@ client = new Twitter({
 	console.log("Done scraping tweets, now processing");
 
 	var currentIndex = 0;
-	var tweets = [];
+	var tweets       = [];
 	lineReader.eachLine(temporaryPath, function(line) {
 		if(line !== "") {
-			if (tweetLimit == -1 || currentIndex < tweetLimit) {
+			if(tweetLimit == -1 || currentIndex < tweetLimit) {
 				var parts = line.split("|");
 				tweets.push({
 					link: parts[0],
@@ -87,17 +90,15 @@ client = new Twitter({
 			return 1;
 		}
 	});
-	
+
 	const browser = await puppeteer.launch({ headless: true });
 
 	const page = await browser.newPage();
 	await page.emulateMediaFeatures(
 		[{ name: 'prefers-color-scheme', value: 'dark' }]);
 
-	await page.emulate(puppeteer.devices["iPad Pro"]);
-	await page.setViewport({ width: 2000, height: 4000});
+	await page.setViewport({ width: 1920, height: 1080,deviceScaleFactor:3 });
 
-	var generatedImages     = [];
 	var generatedImagesSize = [];
 
 	for(let i = 0; i < tweets.length; i++) {
@@ -124,16 +125,15 @@ client = new Twitter({
 
 		var buffer = await tweetHandle.screenshot({ type: "png" });
 
-		const bufferInfo   = await sharp(buffer).metadata();
+		const bufferInfo = await sharp(buffer).metadata();
 		console.log(bufferInfo);
 		const resizedImage = await sharp(
 			buffer).resize(Math.round(bufferInfo.width / (i + 1)))
 								 .toBuffer();
 		const bufferInfoResized = await sharp(resizedImage).metadata();
 
-		generatedImages.push(resizedImage);
 		generatedImagesSize.push(
-			{ w: bufferInfoResized.width, h: bufferInfoResized.height });
+			{ w: bufferInfoResized.width, h: bufferInfoResized.height, image: resizedImage });
 
 		console.log("Handled tweet #" + i + " , width "
 					+ bufferInfoResized.width + ", height "
@@ -153,15 +153,14 @@ client = new Twitter({
 	const canvas = Canvas.createCanvas(potpackInfo.w, potpackInfo.h);
 	const ctx    = canvas.getContext("2d");
 
-	generatedImages.forEach(function(buf, index) {
-		const correspondingInfo = generatedImagesSize[index];
+	generatedImagesSize.forEach(function(correspondingInfo) {
 		const img               = new Canvas.Image();
 		img.onload = () => ctx.drawImage(
 			img, correspondingInfo.x, correspondingInfo.y);
 		img.onerror = err => {
 			throw err
 		};
-		img.src = buf;
+		img.src = correspondingInfo.image;
 	});
 
 	const finalImage = canvas.toBuffer(

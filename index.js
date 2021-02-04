@@ -97,7 +97,7 @@ client = new Twitter({
 	await page.emulateMediaFeatures(
 		[{ name: 'prefers-color-scheme', value: 'dark' }]);
 
-	await page.setViewport({ width: 1920, height: 1080,deviceScaleFactor:3 });
+	await page.setViewport({ width: 400, height: 1080,deviceScaleFactor:3 });
 
 	var generatedImagesSize = [];
 
